@@ -49,11 +49,17 @@ async fn frontpage(Extension(pool): Extension<Arc<SqlitePool>>) -> Html<String> 
                     border: 1px solid black;
                     margin-top: 5px;
                 }}
+                
                 .user-info {{
                     flex: 0 0 150px;
                     padding: 10px;
                     background-color: #dddddd;
                 }}
+                .user-info > img {{
+                    width: 100%;
+                    border: 1px solid black;
+                }}
+                
                 .post-info {{
                     flex: 1;
                     min-height: 200px;
@@ -61,7 +67,6 @@ async fn frontpage(Extension(pool): Extension<Arc<SqlitePool>>) -> Html<String> 
                     background-color: #eeeeee;
                     box-sizing: border-box;
                 }}
-                
                 .post-info2 {{
                     display: flex;
                     justify-content: space-between;
@@ -108,7 +113,7 @@ async fn frontpage(Extension(pool): Extension<Arc<SqlitePool>>) -> Html<String> 
                 <p>{}</p>{}</div>
             </div>"###,
             post_order + 1,
-            post.username, image!(post.useravatar),
+            image!(post.useravatar), post.username,
             post.date, post_order + 1, post.content, image!(post.image))).collect::<String>()
     ))
 }
@@ -131,18 +136,28 @@ async fn add_post(
                 _ => return (StatusCode::BAD_REQUEST, "bad username".to_owned()).into_response(),
             };
         } else if field_name == "useravatar" {
-            let image_content_type = field.content_type().unwrap_or("image/png").to_owned();
-            
             let Ok(useravatar_url) = field.text().await.map_err(|e| e.to_string()) else {
                 return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response();
             };
             
-            let mut useravatar_image = Vec::<u8>::new();
-            // TODO: download image
-            
-            match db::insert_file(&pool, &image_content_type, useravatar_image).await {
-                Err(_) => return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response(),
-                Ok(uuid) => useravatar_uuid = Some(uuid),
+            if useravatar_url != "" {
+                let Ok(useravatar_response) = reqwest::Client::new().get(useravatar_url).send().await else {
+                    return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response();
+                };
+                
+                let useravatar_content_type = match useravatar_response.headers().get("Content-Type").map(|e| e.to_str()) {
+                    Some(Ok(content_type)) => content_type.to_owned(),
+                    _ => return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response(),
+                };
+                
+                let Ok(useravatar_image) = useravatar_response.bytes().await else {
+                    return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response();
+                };
+                
+                match db::insert_file(&pool, &useravatar_content_type, useravatar_image.to_vec()).await {
+                    Err(_) => return (StatusCode::BAD_REQUEST, "bad user avatar".to_owned()).into_response(),
+                    Ok(uuid) => useravatar_uuid = Some(uuid),
+                }
             }
         } else if field_name == "content" {
             content = match field.text().await.map_err(|e| e.to_string()) {
@@ -151,6 +166,7 @@ async fn add_post(
             }
         } else if field_name == "image" {
             let image_content_type = field.content_type().unwrap_or("image/png").to_owned();
+            
             let image = match field.bytes().await {
                 Ok(image) => image.to_vec(),
                 Err(e) => {
@@ -159,9 +175,11 @@ async fn add_post(
                 }
             };
             
-            match db::insert_file(&pool, &image_content_type, image).await {
-                Err(_) => return (StatusCode::BAD_REQUEST, "bad image".to_owned()).into_response(),
-                Ok(uuid) => image_uuid = Some(uuid),
+            if image.len() != 0 {
+                match db::insert_file(&pool, &image_content_type, image).await {
+                    Err(_) => return (StatusCode::BAD_REQUEST, "bad image".to_owned()).into_response(),
+                    Ok(uuid) => image_uuid = Some(uuid),
+                }
             }
         }
     }
