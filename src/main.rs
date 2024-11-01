@@ -5,6 +5,7 @@ use axum::{
     routing::get,
     Router,
 };
+use clap::{Parser};
 use sqlx::{sqlite::SqlitePool, types::Uuid, FromRow};
 use std::{fmt::Write, fs::File, sync::Arc};
 
@@ -236,42 +237,23 @@ async fn serve_data(
     response
 }
 
-fn print_usage() {
-    println!("Usage: {} [OPTIONS]", std::env::args().next().unwrap());
-    println!();
-    println!("Options:");
-    println!("    --help            Print this help message");
-    println!("    --db-file <path>  Specify the database file path (optional, runs in memory by default)");
-}
-
-// This is strictly speaking not correct, as it will match overlapping arguments
-// For use of this task, I thought using clap would be overkill?
-fn find_argument<'a>(args: &'a [String], name: &'a str) -> Option<&'a str> {
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if arg == name {
-            return iter.next().map(|x| x.as_str());
-        }
-    }
-    None
+#[derive(Parser)]
+struct CliOptions {
+    #[arg(long, help = "Specify the database file path (optional, runs in memory when not set)")]
+    db_file: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let args: Vec<_> = std::env::args().collect();
+    let cli_options = CliOptions::parse();
 
-    if args.iter().any(|e| e == "--help") {
-        print_usage();
-        return Ok(());
-    }
-
-    let pool = match find_argument(&args, "--db-file") {
+    let pool = match cli_options.db_file {
         // Store db to a file
         Some(file_name) => {
-            let first_usage = File::open(file_name).is_err();
+            let first_usage = File::open(&file_name).is_err();
 
             if first_usage {
-                File::create(file_name)?;
+                File::create(&file_name)?;
             }
 
             let pool = Arc::new(
