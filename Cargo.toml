@@ -1,0 +1,12 @@
+[package]
+name = "JetBrainsBlogTask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["multipart"] }
+html-escape = "0.2"
+serde = "1.0"
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "uuid"] }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.11.0", features = ["v7"] }
