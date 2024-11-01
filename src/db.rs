@@ -1,13 +1,10 @@
-
 use sqlx::sqlite::SqlitePool;
 use sqlx::types::Uuid;
 
 use crate::Post;
 
-
-
 pub async fn setup_database(pool: &SqlitePool) {
-    sqlx::query(
+    match sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,26 +23,59 @@ pub async fn setup_database(pool: &SqlitePool) {
     )
     .execute(pool)
     .await
-    .unwrap();
+    {
+        Ok(_) => (),
+        Err(e) => panic!("Database initialization failed: {}", e),
+    }
+}
+
+pub async fn insert_post(
+    pool: &SqlitePool,
+    username: &str,
+    useravatar_uuid: &Option<Uuid>,
+    content: &str,
+    image_uuid: &Option<Uuid>,
+) -> Result<(), ()> {
+    sqlx::query(
+        "INSERT INTO posts (username, useravatar, content, image)
+                 VALUES (?, ?, ?, ?)",
+    )
+    .bind(username)
+    .bind(useravatar_uuid)
+    .bind(content)
+    .bind(image_uuid)
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(|_| ())
 }
 
 pub async fn fetch_all_posts(pool: &SqlitePool) -> Vec<Post> {
-    sqlx::query_as::<_, Post>("SELECT * FROM posts")
+    match sqlx::query_as::<_, Post>("SELECT * FROM posts")
         .fetch_all(pool)
         .await
-        .unwrap()
+    {
+        Ok(a) => a,
+        Err(_) => vec![],
+    }
 }
 
-pub async fn insert_file(pool: &SqlitePool, content_type: &str, content: Vec<u8>) -> Result<Uuid, ()> {
+pub async fn insert_file(
+    pool: &SqlitePool,
+    content_type: &str,
+    content: Vec<u8>,
+) -> Result<Uuid, ()> {
     let uuid = Uuid::now_v7();
-    
-    match sqlx::query("INSERT INTO files (id, content_type, content)
-                 VALUES (?, ?, ?)")
-        .bind(&uuid)
-        .bind(content_type)
-        .bind(content)
-        .execute(pool)
-        .await
+
+    match sqlx::query(
+        "INSERT INTO files (id, content_type, content)
+                 VALUES (?, ?, ?)",
+    )
+    .bind(uuid)
+    .bind(content_type)
+    .bind(content)
+    .execute(pool)
+    .await
     {
         Ok(_) => Ok(uuid),
         Err(_) => Err(()),
@@ -53,10 +83,12 @@ pub async fn insert_file(pool: &SqlitePool, content_type: &str, content: Vec<u8>
 }
 
 pub async fn get_file(pool: &SqlitePool, uuid: &Uuid) -> Result<(String, Vec<u8>), ()> {
-    match sqlx::query_as::<_, (String, Vec<u8>)>("SELECT content_type, content FROM files WHERE id = ?")
-        .bind(uuid)
-        .fetch_one(pool)
-        .await
+    match sqlx::query_as::<_, (String, Vec<u8>)>(
+        "SELECT content_type, content FROM files WHERE id = ?",
+    )
+    .bind(uuid)
+    .fetch_one(pool)
+    .await
     {
         Ok(a) => Ok(a),
         Err(_) => Err(()),
