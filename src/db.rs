@@ -1,7 +1,14 @@
-use sqlx::sqlite::SqlitePool;
-use sqlx::types::Uuid;
 
-use crate::Post;
+use sqlx::{sqlite::SqlitePool, types::Uuid, FromRow};
+
+#[derive(FromRow)]
+pub struct Post {
+    pub username: String,
+    pub useravatar: Option<Uuid>,
+    pub date: String, // = YYYY-MM-DDTHH:MM:SSZ
+    pub content: String,
+    pub image: Option<Uuid>,
+}
 
 pub async fn setup_database(pool: &SqlitePool) {
     match sqlx::query(

@@ -4,20 +4,11 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use sqlx::{sqlite::SqlitePool, types::Uuid, FromRow};
+use sqlx::SqlitePool;
 use std::{fs::File, sync::Arc};
 
 mod db;
 mod endpoints;
-
-#[derive(FromRow)]
-struct Post {
-    username: String,
-    useravatar: Option<Uuid>,
-    date: String, // = YYYY-MM-DDTHH:MM:SSZ
-    content: String,
-    image: Option<Uuid>,
-}
 
 const FRONTPAGE_LOCATION: &str = "/home";
 const DATA_LOCATION: &str = "/data";
