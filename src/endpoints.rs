@@ -15,70 +15,81 @@ pub async fn frontpage(Extension(pool): Extension<Arc<SqlitePool>>) -> Html<Stri
         };
     }
 
-    let html_start = r###"<html>
-            <head><title>Blog Posts</title></head>
-            <style>
-                body {
-                    background-color: #cccccc;
-                }
+    let html_start = r###"<!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <title>Blog Posts</title>
+                <style>
+                    body {
+                        background-color: #cccccc;
+                    }
+                    
+                    .submit-form {
+                        border: 1px solid black;
+                        padding: 10px;
+                        background-color: #dddddd;
+                    }
 
-                .blog-post {
-                    display: flex;
-                    width: 100%;
-                    border: 1px solid black;
-                    margin-top: 5px;
-                }
-                
-                .user-info {
-                    flex: 0 0 150px;
-                    padding: 10px;
-                    background-color: #dddddd;
-                }
-                .user-info > img {
-                    width: 100%;
-                    border: 1px solid black;
-                }
-                
-                .post-info {
-                    flex: 1;
-                    min-height: 200px;
-                    padding: 10px;
-                    background-color: #eeeeee;
-                    box-sizing: border-box;
-                }
-                .post-info2 {
-                    display: flex;
-                    justify-content: space-between;
-                }
-                .post-info > * {
-                    padding: 5px;
-                }
-                .post-info > hr {
-                    padding: 0;
-                }
-                .post-info > img {
-                    padding: 0px;
-                    max-width: 100%;
-                }
-            </style>
+                    .blog-post {
+                        display: flex;
+                        border: 1px solid black;
+                        margin-top: 5px;
+                    }
+                    
+                    .user-info {
+                        flex: 0 0 150px;
+                        max-width: 150px;
+                        padding: 10px;
+                        background-color: #dddddd;
+                        overflow-wrap: break-word;
+                    }
+                    .user-info > img {
+                        width: 100%;
+                        border: 1px solid black;
+                    }
+                    
+                    .post-info {
+                        flex: 1;
+                        min-height: 200px;
+                        padding: 10px;
+                        background-color: #eeeeee;
+                        box-sizing: border-box;
+                    }
+                    .post-info2 {
+                        display: flex;
+                        justify-content: space-between;
+                    }
+                    .post-info > * {
+                        padding: 5px;
+                    }
+                    .post-info > hr {
+                        padding: 0;
+                    }
+                    .post-info > img {
+                        padding: 0px;
+                        max-width: 100%;
+                    }
+                </style>
+            </head>
             <body>
                 <h1>Blog Posts</h1>
-                <form method="POST" action="#" enctype="multipart/form-data">
-                    <input type="text" name="username" placeholder="Username*" required/><br/>
-                    <input type="url" name="useravatar" placeholder="User avatar link"/><br/>
-                    <textarea name="content" placeholder="Post content*" required></textarea><br/>
-                    <input type="file" name="image"/><br/><br/>
+                <form method="POST" action="#" enctype="multipart/form-data" class="submit-form">
+                    <input type="text" name="username" placeholder="Username*" required><br>
+                    <input type="url" name="useravatar" placeholder="User avatar link"><br>
+                    <textarea name="content" placeholder="Post content*" required></textarea><br>
+                    <input type="file" name="image"><br><br>
                     <button type="submit">Add Post</button>
                 </form>
                 <div>"###
         .to_owned();
     let mut html_with_posts = crate::db::fetch_all_posts(pool.as_ref()).await.into_iter().enumerate().fold(html_start, |mut html, (post_order, post)| {
         let _ = write!(html,
-            r###"<div class="blog-post" post-order="{}">
-                <div class="user-info">{}<span>User: {}</span></div>
-                <div class="post-info"><div class="post-info2"><span class="post-date" post-date="{}">Posted on: ???</span><span>#{}</span></div><hr>
-                <p>{}</p>{}</div>
-            </div>"###, post_order + 1,
+            r###"
+                    <div class="blog-post">
+                        <div class="user-info">{}<span>User: {}</span></div>
+                        <div class="post-info"><div class="post-info2"><span class="post-date" post-date="{}">Posted on: ???</span><span>#{}</span></div><hr>
+                        <p>{}</p>{}</div>
+                    </div>"###,
             image!(post.useravatar), post.username,
             post.date, post_order + 1, post.content, image!(post.image));
         html
@@ -86,15 +97,15 @@ pub async fn frontpage(Extension(pool): Extension<Arc<SqlitePool>>) -> Html<Stri
     html_with_posts.push_str(
         r###"
                 </div>
+                <script>
+                    window.onload = function() {
+                        for (e of document.getElementsByClassName("post-date")) {
+                            let date = new Date(`${e.getAttribute("post-date")}`);
+                            e.innerText = `Posted on: ${date}`;
+                        }
+                    };
+                </script>
             </body>
-            <script>
-                window.onload = function() {
-                    for (e of document.getElementsByClassName("post-date")) {
-                        let date = new Date(`${e.getAttribute("post-date")}`);
-                        e.innerText = `Posted on: ${date}`;
-                    }
-                };
-            </script>
         </html>
         "###,
     );
@@ -189,7 +200,7 @@ pub async fn add_post(
 
     match crate::db::insert_post(
         &pool,
-        &username,
+        &html_escape::encode_text(&username),
         &useravatar_uuid,
         &html_escape::encode_text(&content),
         &image_uuid,
