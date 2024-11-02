@@ -1,0 +1,11 @@
+services:
+  blog:
+    build: .
+    volumes:
+      - ./docker_data:/data
+    ports:
+      - "3000:3000"
+
+volumes:
+  docker_data:
+    driver: local
